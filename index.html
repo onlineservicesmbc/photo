@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <title>Professional Passport & Stamp Sheet - AI BG</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Cropper.js Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <!-- Google MediaPipe Selfie Segmentation AI -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+
+    <!-- html2canvas & jsPDF Library for Exporting PDF/JPG -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); 
+            font-family: 'Plus Jakarta Sans', Arial, sans-serif; 
+            padding: 20px 12px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            min-height: 100vh;
+            color: #334155;
+        }
+
+        /* लॉगिन मॉडल डिजाइन */
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(15, 23, 42, 0.95);
+            display: flex; justify-content: center; align-items: center; z-index: 99999;
+        }
+        .login-box {
+            background-color: #1e293b; padding: 30px; border-radius: 12px;
+            border: 1px solid #38bdf8; width: 100%; max-width: 400px; text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .login-box h2 { color: #38bdf8; margin-bottom: 15px; }
+        .login-box input {
+            width: 100%; padding: 12px; margin: 10px 0; background-color: #0f172a;
+            border: 1px solid #475569; color: white; border-radius: 6px; font-size: 16px; box-sizing: border-box;
+        }
+        .login-box button {
+            width: 100%; padding: 12px; background-color: #0284c7; color: white;
+            border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        .login-box button:hover { background-color: #0369a1; }
+        #loginError { color: #f87171; margin-top: 10px; font-size: 14px; }
+
+        /* मुख्य टूल कंटेनर (लॉगिन के बाद दिखेगा) */
+        #mainAppContent { display: none; width: 100%; flex-direction: column; align-items: center; }
+
+        .crop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001;
+        }
+
+        .crop-modal {
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 95%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+            max-height: 98vh;
+            overflow-y: auto;
+        }
+
+        .crop-modal h3 {
+            font-size: 16px;
+            color: #0f172a;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .crop-container {
+            width: 100%;
+            height: 240px;
+            background: #000;
+            border-radius: 8px;
+            overflow: auto;
+            margin-bottom: 8px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .crop-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+            margin: auto;
+            filter: brightness(var(--modal-bright, 100%)) contrast(var(--modal-contrast, 100%)) saturate(var(--modal-saturate, 100%)) sepia(var(--modal-sepia, 0%));
+        }
+
+        .touch-canvas-wrapper {
+            display: none;
+            padding: 80px 40px;
+            min-width: 100%;
+            min-height: 100%;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        #touchCanvas {
+            cursor: none;
+            transform-origin: center center;
+            transition: transform 0.05s ease-out;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: block;
+            margin: auto;
+            filter: brightness(var(--modal-bright, 100%)) contrast(var(--modal-contrast, 100%)) saturate(var(--modal-saturate, 100%)) sepia(var(--modal-sepia, 0%));
+        }
+
+        #circleCursor {
+            position: absolute;
+            border: 2px solid #2563eb;
+            background: rgba(37, 99, 235, 0.2);
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            box-shadow: 0 0 0 1px #ffffff, 0 2px 6px rgba(0,0,0,0.4);
+            transform: translate(-50%, -50%);
+        }
+
+        .ai-bg-bar {
+            width: 100%;
+            background: #f1f5f9;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .ai-bg-bar span {
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .bg-color-pickers {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .color-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid #cbd5e1;
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .color-dot:hover { transform: scale(1.15); }
+        .color-dot.active { border-color: #2563eb; transform: scale(1.15); }
+
+        .modal-filter-bar {
+            width: 100%;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .adjust-group-modal {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            gap: 6px;
+        }
+
+        .adjust-group-modal .slider-box {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            flex: 1;
+        }
+
+        .adjust-group-modal input[type="range"] {
+            width: 100%;
+            accent-color: #2563eb;
+            cursor: pointer;
+        }
+
+        .name-strip-section {
+            width: 100%;
+            background: #f8fafc;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .name-strip-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+        }
+
+        .name-strip-inputs {
+            display: none;
+            margin-top: 6px;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .name-strip-inputs input {
+            flex: 1;
+            min-width: 120px;
+            padding: 5px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 11.5px;
+            outline: none;
+        }
+
+        .name-strip-inputs input:focus {
+            border-color: #2563eb;
+        }
+
+        .manual-touch-bar {
+            width: 100%;
+            background: #eff6ff;
+            padding: 6px 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 6px;
+            border: 1px solid #bfdbfe;
+        }
+
+        .manual-touch-bar .tool-opt {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #1e3a8a;
+        }
+
+        .manual-touch-bar input[type="range"] {
+            width: 60px;
+            accent-color: #2563eb;
+            cursor: pointer;
+        }
+
+        .crop-actions {
+            display: flex;
+            gap: 6px;
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .crop-actions button, .manual-touch-bar button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-ai-bg {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+        }
+        .btn-ai-bg:hover { box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4); }
+
+        .btn-touchup {
+            background: #e0e7ff;
+            color: #3730a3;
+            border: 1px solid #c7d2fe !important;
+        }
+        .btn-touchup:hover { background: #c7d2fe; }
+
+        .btn-crop-done {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+        }
+        .btn-crop-done:hover { box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35); }
+
+        .btn-crop-rotate {
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1 !important;
+        }
+        .btn-crop-rotate:hover { background: #e2e8f0; }
+
+        .btn-crop-cancel {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .btn-crop-cancel:hover { background: #ef4444; color: #fff; }
+
+        .ai-loading {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            color: white;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 12.5px;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        #mainApp {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .control-panel { 
+            background: rgba(255, 255, 255, 0.98); 
+            backdrop-filter: blur(10px);
+            padding: 10px 14px; 
+            border-radius: 12px; 
+            margin-bottom: 18px; 
+            display: flex; 
+            gap: 6px; 
+            align-items: center;
+            justify-content: center; 
+            width: 100%; 
+            max-width: 210mm;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2); 
+            flex-wrap: nowrap; 
+            overflow-x: auto;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+
+        .control-panel button { 
+            background: #f8fafc; 
+            color: #1e293b; 
+            border: 1px solid #cbd5e1; 
+            padding: 7px 10px; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .control-panel button:hover {
+            background: #f1f5f9;
+            transform: translateY(-1px);
+            border-color: #94a3b8;
+        }
+
+        .control-panel button.btn-primary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25);
+        }
+        .control-panel button.btn-primary:hover {
+            box-shadow: 0 5px 12px rgba(16, 185, 129, 0.35);
+        }
+
+        .control-panel button.btn-pdf {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 3px 8px rgba(239, 68, 68, 0.25);
+        }
+        .control-panel button.btn-pdf:hover {
+            box-shadow: 0 5px 12px rgba(239, 68, 68, 0.35);
+        }
+
+        .control-panel button.btn-jpg {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 3px 8px rgba(59, 130, 246, 0.25);
+        }
+        .control-panel button.btn-jpg:hover {
+            box-shadow: 0 5px 12px rgba(59, 130, 246, 0.35);
+        }
+
+        .control-panel button.btn-stamp {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #ffffff;
+            border: none;
+            box-shadow: 0 3px 8px rgba(245, 158, 11, 0.25);
+        }
+        .control-panel button.btn-stamp:hover {
+            box-shadow: 0 5px 12px rgba(245, 158, 11, 0.35);
+        }
+
+        .control-panel button.btn-danger {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+        .control-panel button.btn-danger:hover {
+            background: #ef4444;
+            color: #ffffff;
+            border-color: #dc2626;
+        }
+
+        .a4-sheet {
+            width: 210mm;
+            height: 297mm;
+            background-color: #ffffff;
+            padding: 6mm 4mm 4mm 4mm; 
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            position: relative;
+            box-sizing: border-box;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .photo-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5mm 1.8mm; 
+            justify-content: center;
+            align-content: flex-start;
+        }
+
+        .photo-card {
+            width: 1.2in; 
+            height: 1.5in; 
+            border: 1px dashed #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            overflow: hidden;
+        }
+
+        .photo-card.stamp-mode {
+            width: 0.78in !important;
+            height: 1.0in !important;
+        }
+
+        .photo-card:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .photo-card::before {
+            content: '+';
+            font-size: 18px;
+            color: #94a3b8;
+            position: absolute;
+            font-weight: 300;
+        }
+
+        .photo-card.has-image {
+            border: 1px solid #94a3b8;
+            background: transparent;
+        }
+        .photo-card.has-image::before {
+            display: none;
+        }
+
+        .photo-card img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+        }
+        
+        .delete-btn { 
+            position: absolute; 
+            top: 2px; 
+            right: 2px; 
+            background: rgba(220, 38, 38, 0.85); 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            font-size: 11px; 
+            width: 18px; 
+            height: 18px; 
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: transform 0.15s, background 0.15s;
+            z-index: 5;
+        }
+
+        .photo-card.has-image:hover .delete-btn {
+            display: flex;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            body { background: transparent !important; padding: 0 !important; }
+            .crop-overlay, .control-panel, .delete-btn { display: none !important; }
+            .a4-sheet { 
+                box-shadow: none !important; 
+                border-radius: 0 !important; 
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 6mm 4mm 4mm 4mm !important; 
+                overflow: hidden !important;
+            }
+            .photo-grid {
+                gap: 1.5mm 1.8mm !important;
+            }
+            .photo-card { 
+                border: 1px solid #94a3b8 !important; 
+                background: transparent !important; 
+            }
+            .photo-card::before { display: none !important; }
+            .photo-card.has-image {
+                display: flex !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- लॉगिन स्क्रीन पॉपअप (पासवर्ड •••• डॉट-डॉट फॉर्मेट) -->
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>सत्यापन (Login) आवश्यक है</h2>
+            <p style="color: #cbd5e1; font-size: 13px;">कृपया अपना टूल चलाने के लिए अपनी सब्सक्रिप्शन आईडी दर्ज करें।</p>
+            <input type="password" id="subIdInput" placeholder="अपनी सब्सक्रिप्शन आईडी डालें">
+            <button onclick="handleLogin()">लॉगिन करें</button>
+            <div id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- मुख्य टूल कंटेंट (लॉगिन सफल होने के बाद दिखेगा) -->
+    <div id="mainAppContent">
+        <!-- स्वागत बैनर (क्लाइंट का नाम दिखाने के लिए) -->
+        <div style="background: #1e293b; padding: 12px 20px; border-radius: 10px; margin-bottom: 15px; text-align: center; border: 1px solid #38bdf8; width: 100%; max-width: 210mm;">
+            <h1 id="welcomeTitle" style="color: #38bdf8; font-size: 18px; margin: 0 0 3px 0;">स्वागत है!</h1>
+            <p style="color: #cbd5e1; font-size: 12px; margin: 0;">आपका प्रीमियम टूल इस डिवाइस पर सक्रिय है।</p>
+        </div>
+
+        <!-- स्टेप 1: क्रॉपिंग मॉडल -->
+        <div class="crop-overlay" id="cropOverlay">
+            <div class="crop-modal">
+                <h3>✂️ स्टेप 1: फोटो क्रॉप करें (पासपोर्ट साइज़)</h3>
+                <div class="crop-container">
+                    <img id="cropImageSrc" src="">
+                </div>
+                <div class="crop-actions">
+                    <button class="btn-crop-rotate" onclick="cropper.rotate(90)">🔄 घुमाएँ (90°)</button>
+                    <button class="btn-crop-cancel" onclick="closeCropOverlay()">रद्द करें</button>
+                    <button class="btn-crop-done" onclick="proceedToAITool()">आगे बढ़ें (Next) ➔</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- स्टेप 2: AI बैकग्राउंड, फिल्टर्स और नाम/तारीख टूल -->
+        <div class="crop-overlay" id="aiToolOverlay">
+            <div class="crop-modal">
+                <h3>🎨 स्टेप 2: AI बैकग्राउंड & फोटो एडिटिंग</h3>
+                
+                <div class="crop-container" id="cropContainerBox">
+                    <div class="ai-loading" id="aiLoading">⚡ AI बैकग्राउंड प्रोसेस हो रहा है...</div>
+                    <div id="circleCursor"></div>
+                    <img id="aiImageSrc" src="">
+                    <div class="touch-canvas-wrapper" id="touchCanvasWrapper">
+                        <canvas id="touchCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- AI Background Option Bar -->
+                <div class="ai-bg-bar" id="aiBgBar">
+                    <span>🎨 BG Color:</span>
+                    <div class="bg-color-pickers">
+                        <div class="color-dot active" style="background:#ffffff;" title="White" onclick="selectBgColor('#ffffff', this)"></div>
+                        <div class="color-dot" style="background:#87CEEB;" title="Light Blue" onclick="selectBgColor('#87CEEB', this)"></div>
+                        <div class="color-dot" style="background:#1E3A8A;" title="Dark Blue" onclick="selectBgColor('#1E3A8A', this)"></div>
+                        <div class="color-dot" style="background:#E2E8F0;" title="Light Grey" onclick="selectBgColor('#E2E8F0', this)"></div>
+                    </div>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn-ai-bg" onclick="removeBackgroundAI()">🪄 AI Auto Remove</button>
+                        <button class="btn-touchup" onclick="startManualTouchup()">🖌️ Manual Touch-up</button>
+                    </div>
+                </div>
+
+                <div class="modal-filter-bar" id="modalFilterBar">
+                    <div class="adjust-group-modal">
+                        <div class="slider-box">
+                            <span>Bright:</span>
+                            <input type="range" min="50" max="150" value="100" oninput="updateModalFilters('bright', this.value+'%')">
+                        </div>
+                        <div class="slider-box">
+                            <span>Contrast:</span>
+                            <input type="range" min="50" max="150" value="100" oninput="updateModalFilters('contrast', this.value+'%')">
+                        </div>
+                    </div>
+                    <div class="adjust-group-modal">
+                        <div class="slider-box">
+                            <span>Saturate:</span>
+                            <input type="range" min="0" max="200" value="100" oninput="updateModalFilters('saturate', this.value+'%')">
+                        </div>
+                        <div class="slider-box">
+                            <span>Anti-Yellow (Warmth -):</span>
+                            <input type="range" min="0" max="100" value="0" oninput="updateModalFilters('sepia', this.value+'%')">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="name-strip-section" id="nameStripSection">
+                    <label class="name-strip-toggle">
+                        <input type="checkbox" id="enableNameStrip" onchange="toggleNameStripInputs(this)"> 
+                        📸 Add Name & Date Strip (0.3" Inside White Box)
+                    </label>
+                    <div class="name-strip-inputs" id="nameStripInputsBox">
+                        <input type="text" id="stripNameInput" placeholder="व्यक्ति का नाम (Name)">
+                        <input type="text" id="stripDateInput" placeholder="तारीख (Date)">
+                        <button class="btn-crop-done" style="padding:5px 10px; font-size:11px;" onclick="applyNameToPhoto()">✓ पट्टी जोड़ें</button>
+                    </div>
+                </div>
+
+                <div class="manual-touch-bar" id="manualTouchBar">
+                    <div class="tool-opt">
+                        <span>Mode:</span>
+                        <select id="brushMode" style="padding:3px 6px; border-radius:5px; font-size:11.5px;">
+                            <option value="erase">🧹 Erase (BG Color)</option>
+                            <option value="restore">↩️ Restore Original</option>
+                        </select>
+                    </div>
+                    <div class="tool-opt">
+                        <span>Brush:</span>
+                        <input type="range" id="brushSize" min="5" max="70" value="25" oninput="updateCursorSize()">
+                    </div>
+                    <div class="tool-opt">
+                        <span>Zoom: <b id="zoomValTxt" style="font-size:11px; color:#2563eb;">1.0x</b></span>
+                        <input type="range" id="zoomRange" min="0.3" max="10" step="0.1" value="1" oninput="updateTouchZoom(this.value)">
+                    </div>
+                    <button style="background:#e2e8f0; color:#334155;" onclick="undoTouchup()">↩️ Undo</button>
+                    <button style="background:#10b981; color:white;" onclick="finishManualTouchup()">✓ Done</button>
+                </div>
+
+                <div class="crop-actions" id="standardAIActions">
+                    <button class="btn-crop-cancel" onclick="closeAIToolOverlay()">रद्द करें</button>
+                    <button class="btn-crop-done" onclick="applyFinalPhoto()">✅ लागू करें (Sheet पर भेजें)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="mainApp">
+            <div class="control-panel">
+                <button onclick="toggleStampSize()" class="btn-stamp" id="stampBtn">🪪 Stamp Size</button>
+                <button onclick="printPopupSheet()" class="btn-primary">🖨️ Print Sheet</button>
+                <button onclick="downloadPDF()" class="btn-pdf">📥 PDF Download</button>
+                <button onclick="downloadJPG()" class="btn-jpg">🖼️ JPG Download</button>
+                <button onclick="clearAllData()" class="btn-danger">❌ Clear</button>
+                <button onclick="addBatchPhotos()" id="batchAddBtn">⚡ +6 Photos</button>
+                <button onclick="fillAllPhotos()">⚡ Fill All</button>
+            </div>
+
+            <div class="a4-sheet" id="printArea">
+                <div class="photo-grid" id="grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="slotUploader" accept="image/*" style="display:none" onchange="initCrop(this, activeSlot)">
+
+    <script>
+        // --- सब्सक्रिप्शन और ऑटो-लॉगिन लॉजिक ---
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzxq12hBI4tPMRJwrMvT1nGHB1OH05wlwDQ6_PBHPYY7nouItp5FzFZIdXBA4MxQZJQ/exec"; // यहाँ अपना गूगल वेब ऐप यूआरएल डालें
+
+        window.onload = function() {
+            const savedSubId = localStorage.getItem('saved_subscription_id');
+            if (savedSubId) {
+                document.getElementById('subIdInput').value = savedSubId;
+                handleLogin(); // ऑटो-लॉगिन
+            }
+        };
+
+        function getOrCreateDeviceId() {
+            let devId = localStorage.getItem('p Tool_Device_Id');
+            if (!devId) {
+                devId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+                localStorage.setItem('p Tool_Device_Id', devId);
+            }
+            return devId;
+        }
+
+        function handleLogin() {
+            const subId = document.getElementById('subIdInput').value.trim();
+            const errorDiv = document.getElementById('loginError');
+            
+            if (!subId) {
+                errorDiv.innerText = "कृपया सब्सक्रिप्शन आईडी दर्ज करें!";
+                return;
+            }
+
+            errorDiv.innerText = "सत्यापन हो रहा है...";
+            const deviceId = getOrCreateDeviceId();
+
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                body: JSON.stringify({ subId: subId, deviceId: deviceId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    localStorage.setItem('saved_subscription_id', subId);
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    document.getElementById('mainAppContent').style.display = 'flex';
+                    document.getElementById('welcomeTitle').innerText = "स्वागत है, " + data.clientName + " जी!";
+                } else {
+                    if (data.message.includes("समाप्त") || data.message.includes("अमान्य")) {
+                        localStorage.removeItem('saved_subscription_id');
+                        document.getElementById('subIdInput').value = '';
+                    }
+                    errorDiv.innerText = data.message;
+                }
+            })
+            .catch(error => {
+                errorDiv.innerText = "कनेक्शन एरर: कृपया दोबारा कोशिश करें।";
+                console.error("Error:", error);
+            });
+        }
+
+        // --- पासपोर्ट शीट टूल का ओरिजिनल लॉजिक ---
+        let TOTAL_SLOTS = 42;
+        let isStampMode = false;
+        const grid = document.getElementById('grid');
+
+        function renderGrid() {
+            grid.innerHTML = '';
+            TOTAL_SLOTS = isStampMode ? 72 : 42;
+            for (let i = 0; i < TOTAL_SLOTS; i++) {
+                grid.innerHTML += `
+                    <div class="photo-card ${isStampMode ? 'stamp-mode' : ''}" id="card-${i}" onclick="selectSlot(${i})">
+                        <img id="img-${i}" style="display:none;">
+                        <button class="delete-btn" onclick="event.stopPropagation(); clearSlot(${i})">✕</button>
+                    </div>`;
+            }
+            document.getElementById('batchAddBtn').innerText = isStampMode ? '⚡ +9 Photos' : '⚡ +6 Photos';
+        }
+        renderGrid();
+
+        function clearAllData() {
+            for (let i = 0; i < TOTAL_SLOTS; i++) {
+                clearSlot(i);
+            }
+        }
+
+        let activeSlot = 0;
+        let cropper = null;
+        let targetSlotForCrop = 0;
+        let rawUploadedImage = null;
+        let croppedBaseImage = null;
+        let currentProcessedImage = null;
+        let selectedBgColor = '#ffffff';
+
+        const containerBox = document.getElementById('cropContainerBox');
+        const touchCanvasWrapper = document.getElementById('touchCanvasWrapper');
+        const touchCanvas = document.getElementById('touchCanvas');
+        const touchCtx = touchCanvas.getContext('2d');
+        const circleCursor = document.getElementById('circleCursor');
+        let isDrawing = false;
+        let touchHistory = [];
+        let touchZoom = 1;
+        let lastX = 0, lastY = 0;
+
+        const selfieSegmentation = new SelfieSegmentation({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+        });
+        selfieSegmentation.setOptions({ modelSelection: 1 });
+
+        function selectSlot(i) { 
+            activeSlot = i; 
+            document.getElementById('slotUploader').click(); 
+        }
+
+        function updateModalFilters(type, value) {
+            if (type === 'sepia') {
+                document.documentElement.style.setProperty('--modal-sepia', value);
+                const deg = (parseFloat(value) * 0.5) + 'deg';
+                document.documentElement.style.setProperty('--modal-hue', deg);
+            } else {
+                document.documentElement.style.setProperty('--modal-' + type, value);
+            }
+        }
+
+        function selectBgColor(color, el) {
+            selectedBgColor = color;
+            document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+            el.classList.add('active');
+        }
+
+        function toggleNameStripInputs(checkbox) {
+            const box = document.getElementById('nameStripInputsBox');
+            if (checkbox.checked) {
+                box.style.display = 'flex';
+                const today = new Date();
+                const dd = String(today.getDate()).padStart(2, '0');
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const yyyy = today.getFullYear();
+                document.getElementById('stripDateInput').value = `${dd}-${mm}-${yyyy}`;
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        function toggleStampSize() {
+            isStampMode = !isStampMode;
+            const btn = document.getElementById('stampBtn');
+            if (isStampMode) {
+                btn.style.background = 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)';
+                btn.innerText = '📸 Passport Size';
+            } else {
+                btn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                btn.innerText = '🪪 Stamp Size';
+            }
+            renderGrid();
+        }
+
+        function initCrop(input, slotIndex) {
+            if (input.files && input.files[0]) {
+                targetSlotForCrop = slotIndex;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    rawUploadedImage = new Image();
+                    rawUploadedImage.src = e.target.result;
+                    rawUploadedImage.onload = () => {
+                        setupCropOverlay(rawUploadedImage.src);
+                    };
+                };
+                reader.readAsDataURL(input.files[0]);
+                input.value = '';
+            }
+        }
+
+        function setupCropOverlay(src) {
+            const cropImageSrc = document.getElementById('cropImageSrc');
+            cropImageSrc.src = src;
+            document.getElementById('cropOverlay').style.display = 'flex';
+
+            if (cropper) {
+                cropper.destroy();
+            }
+
+            cropper = new Cropper(cropImageSrc, {
+                aspectRatio: 1.2 / 1.5,
+                viewMode: 1,
+                autoCropArea: 0.9,
+                responsive: true,
+                background: false
+            });
+        }
+
+        function closeCropOverlay() {
+            document.getElementById('cropOverlay').style.display = 'none';
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        }
+
+        function proceedToAITool() {
+            if (!cropper) return;
+            const canvas = cropper.getCroppedCanvas({
+                width: 600,
+                height: 750,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high'
+            });
+
+            croppedBaseImage = new Image();
+            croppedBaseImage.src = canvas.toDataURL('image/jpeg', 0.95);
+            croppedBaseImage.onload = () => {
+                currentProcessedImage = croppedBaseImage;
+                closeCropOverlay();
+                setupAIToolOverlay(croppedBaseImage.src);
+            };
+        }
+
+        function setupAIToolOverlay(src) {
+            document.getElementById('enableNameStrip').checked = false;
+            document.getElementById('nameStripInputsBox').style.display = 'none';
+            document.getElementById('stripNameInput').value = '';
+            document.getElementById('stripDateInput').value = '';
+
+            document.documentElement.style.setProperty('--modal-bright', '100%');
+            document.documentElement.style.setProperty('--modal-contrast', '100%');
+            document.documentElement.style.setProperty('--modal-saturate', '100%');
+            document.documentElement.style.setProperty('--modal-sepia', '0%');
+
+            const aiImageSrc = document.getElementById('aiImageSrc');
+            aiImageSrc.src = src;
+            aiImageSrc.style.display = 'block';
+            touchCanvasWrapper.style.display = 'none';
+            circleCursor.style.display = 'none';
+            document.getElementById('aiToolOverlay').style.display = 'flex';
+        }
+
+        function closeAIToolOverlay() {
+            document.getElementById('aiToolOverlay').style.display = 'none';
+            document.getElementById('manualTouchBar').style.display = 'none';
+            document.getElementById('aiBgBar').style.display = 'flex';
+            document.getElementById('modalFilterBar').style.display = 'flex';
+            document.getElementById('nameStripSection').style.display = 'block';
+            document.getElementById('standardAIActions').style.display = 'flex';
+            circleCursor.style.display = 'none';
+            touchCanvasWrapper.style.display = 'none';
+        }
+
+        async function removeBackgroundAI() {
+            if (!currentProcessedImage) return;
+            document.getElementById('aiLoading').style.display = 'flex';
+
+            selfieSegmentation.onResults(function(results) {
+                const width = results.image.width;
+                const height = results.image.height;
+
+                const maskCanvas = document.createElement('canvas');
+                maskCanvas.width = width;
+                maskCanvas.height = height;
+                const maskCtx = maskCanvas.getContext('2d');
+
+                maskCtx.filter = 'blur(1.5px)';
+                maskCtx.drawImage(results.segmentationMask, 0, 0, width, height);
+
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = width;
+                finalCanvas.height = height;
+                const fCtx = finalCanvas.getContext('2d');
+
+                fCtx.drawImage(results.image, 0, 0, width, height);
+                fCtx.globalCompositeOperation = 'destination-in';
+                fCtx.drawImage(maskCanvas, 0, 0, width, height);
+
+                fCtx.globalCompositeOperation = 'destination-over';
+                fCtx.fillStyle = selectedBgColor;
+                fCtx.fillRect(0, 0, width, height);
+
+                const processedSrc = finalCanvas.toDataURL('image/jpeg', 0.95);
+                
+                const newImg = new Image();
+                newImg.src = processedSrc;
+                newImg.onload = () => {
+                    currentProcessedImage = newImg;
+                    document.getElementById('aiImageSrc').src = processedSrc;
+                };
+
+                document.getElementById('aiLoading').style.display = 'none';
+            });
+
+            await selfieSegmentation.send({ image: currentProcessedImage });
+        }
+
+        function startManualTouchup() {
+            if (!currentProcessedImage) return;
+
+            document.getElementById('aiBgBar').style.display = 'none';
+            document.getElementById('modalFilterBar').style.display = 'none';
+            document.getElementById('nameStripSection').style.display = 'none';
+            document.getElementById('standardAIActions').style.display = 'none';
+            document.getElementById('manualTouchBar').style.display = 'flex';
+
+            document.getElementById('aiImageSrc').style.display = 'none';
+            touchCanvasWrapper.style.display = 'flex';
+
+            touchCanvas.width = currentProcessedImage.naturalWidth || currentProcessedImage.width;
+            touchCanvas.height = currentProcessedImage.naturalHeight || currentProcessedImage.height;
+
+            touchCtx.clearRect(0, 0, touchCanvas.width, touchCanvas.height);
+            touchCtx.drawImage(currentProcessedImage, 0, 0);
+
+            touchHistory = [touchCtx.getImageData(0, 0, touchCanvas.width, touchCanvas.height)];
+            
+            touchZoom = 1;
+            document.getElementById('zoomRange').value = 1;
+            updateTouchZoom(1);
+            updateCursorSize();
+            attachTouchEvents();
+        }
+
+        function updateTouchZoom(val) {
+            touchZoom = parseFloat(val);
+            document.getElementById('zoomValTxt').innerText = touchZoom.toFixed(1) + 'x';
+            touchCanvas.style.transform = `scale(${touchZoom})`;
+            const dynamicPadding = Math.max(80, 80 * touchZoom);
+            touchCanvasWrapper.style.padding = `${dynamicPadding}px ${dynamicPadding / 2}px`;
+            updateCursorSize();
+        }
+
+        function updateCursorSize() {
+            const size = document.getElementById('brushSize').value;
+            circleCursor.style.width = (size * touchZoom) + 'px';
+            circleCursor.style.height = (size * touchZoom) + 'px';
+        }
+
+        function attachTouchEvents() {
+            containerBox.onmouseenter = () => { circleCursor.style.display = 'block'; };
+            containerBox.onmouseleave = () => { circleCursor.style.display = 'none'; isDrawing = false; };
+
+            containerBox.onmousemove = (e) => {
+                const boxRect = containerBox.getBoundingClientRect();
+                const mouseX = e.clientX - boxRect.left + containerBox.scrollLeft;
+                const mouseY = e.clientY - boxRect.top + containerBox.scrollTop;
+                
+                circleCursor.style.left = mouseX + 'px';
+                circleCursor.style.top = mouseY + 'px';
+
+                if (isDrawing) {
+                    const canvasPos = getCanvasPos(e.clientX, e.clientY);
+                    paintLine(lastX, lastY, canvasPos.x, canvasPos.y);
+                    lastX = canvasPos.x;
+                    lastY = canvasPos.y;
+                }
+            };
+
+            containerBox.onmousedown = (e) => {
+                isDrawing = true;
+                const canvasPos = getCanvasPos(e.clientX, e.clientY);
+                lastX = canvasPos.x;
+                lastY = canvasPos.y;
+                paintDot(lastX, lastY);
+            };
+
+            window.onmouseup = () => {
+                if (isDrawing) {
+                    isDrawing = false;
+                    touchHistory.push(touchCtx.getImageData(0, 0, touchCanvas.width, touchCanvas.height));
+                    if (touchHistory.length > 10) touchHistory.shift();
+                }
+            };
+        }
+
+        function getCanvasPos(clientX, clientY) {
+            const rect = touchCanvas.getBoundingClientRect();
+            return {
+                x: (clientX - rect.left) * (touchCanvas.width / rect.width),
+                y: (clientY - rect.top) * (touchCanvas.height / rect.height)
+            };
+        }
+
+        function paintDot(x, y) {
+            const size = parseFloat(document.getElementById('brushSize').value);
+            const mode = document.getElementById('brushMode').value;
+            touchCtx.save();
+            if (mode === 'erase') {
+                touchCtx.fillStyle = selectedBgColor;
+                touchCtx.beginPath();
+                touchCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+                touchCtx.fill();
+            } else if (mode === 'restore' && croppedBaseImage) {
+                touchCtx.beginPath();
+                touchCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+                touchCtx.clip();
+                touchCtx.drawImage(croppedBaseImage, 0, 0, touchCanvas.width, touchCanvas.height);
+            }
+            touchCtx.restore();
+        }
+
+        function paintLine(x1, y1, x2, y2) {
+            const size = parseFloat(document.getElementById('brushSize').value);
+            const mode = document.getElementById('brushMode').value;
+            touchCtx.save();
+            touchCtx.lineWidth = size;
+            touchCtx.lineCap = 'round';
+            touchCtx.lineJoin = 'round';
+            if (mode === 'erase') {
+                touchCtx.strokeStyle = selectedBgColor;
+                touchCtx.beginPath();
+                touchCtx.moveTo(x1, y1);
+                touchCtx.lineTo(x2, y2);
+                touchCtx.stroke();
+            } else if (mode === 'restore' && croppedBaseImage) {
+                touchCtx.beginPath();
+                touchCtx.moveTo(x1, y1);
+                touchCtx.lineTo(x2, y2);
+                touchCtx.stroke();
+                touchCtx.clip();
+                touchCtx.drawImage(croppedBaseImage, 0, 0, touchCanvas.width, touchCanvas.height);
+            }
+            touchCtx.restore();
+        }
+
+        function undoTouchup() {
+            if (touchHistory.length > 1) {
+                touchHistory.pop();
+                touchCtx.putImageData(touchHistory[touchHistory.length - 1], 0, 0);
+            }
+        }
+
+        function finishManualTouchup() {
+            const updatedDataUrl = touchCanvas.toDataURL('image/jpeg', 0.95);
+            const updatedImg = new Image();
+            updatedImg.src = updatedDataUrl;
+            updatedImg.onload = () => {
+                currentProcessedImage = updatedImg;
+                document.getElementById('aiImageSrc').src = updatedDataUrl;
+                document.getElementById('manualTouchBar').style.display = 'none';
+                document.getElementById('aiBgBar').style.display = 'flex';
+                document.getElementById('modalFilterBar').style.display = 'flex';
+                document.getElementById('nameStripSection').style.display = 'block';
+                document.getElementById('standardAIActions').style.display = 'flex';
+                circleCursor.style.display = 'none';
+                touchCanvasWrapper.style.display = 'flex';
+                document.getElementById('aiImageSrc').style.display = 'block';
+                touchCanvasWrapper.style.display = 'none';
+            };
+        }
+
+        function applyNameToPhoto() {
+            const nameText = document.getElementById('stripNameInput').value.trim().toUpperCase();
+            const dateText = document.getElementById('stripDateInput').value.trim();
+
+            const imgElem = document.getElementById('aiImageSrc');
+            const tempImg = new Image();
+            tempImg.src = imgElem.src;
+            tempImg.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 600;
+                canvas.height = 750;
+                const ctx = canvas.getContext('2d');
+
+                ctx.drawImage(tempImg, 0, 0, 600, 750);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 620, 600, 130);
+
+                ctx.fillStyle = '#000000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                if (nameText && dateText) {
+                    let nameFontSize = 42;
+                    ctx.font = `bold ${nameFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    while (ctx.measureText(nameText).width > 570 && nameFontSize > 18) {
+                        nameFontSize -= 1;
+                        ctx.font = `bold ${nameFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    }
+                    ctx.fillText(nameText, 300, 658);
+
+                    let dateFontSize = 36;
+                    ctx.font = `bold ${dateFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    while (ctx.measureText(dateText).width > 570 && dateFontSize > 16) {
+                        dateFontSize -= 1;
+                        ctx.font = `bold ${dateFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    }
+                    ctx.fillText(dateText, 300, 708);
+
+                } else if (nameText) {
+                    let nameFontSize = 46;
+                    ctx.font = `bold ${nameFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    while (ctx.measureText(nameText).width > 570 && nameFontSize > 20) {
+                        nameFontSize -= 1;
+                        ctx.font = `bold ${nameFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    }
+                    ctx.fillText(nameText, 300, 685);
+
+                } else if (dateText) {
+                    let dateFontSize = 44;
+                    ctx.font = `bold ${dateFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    while (ctx.measureText(dateText).width > 570 && dateFontSize > 18) {
+                        dateFontSize -= 1;
+                        ctx.font = `bold ${dateFontSize}px "Plus Jakarta Sans", Arial, sans-serif`;
+                    }
+                    ctx.fillText(dateText, 300, 685);
+                }
+
+                const finalSrc = canvas.toDataURL('image/jpeg', 0.95);
+                imgElem.src = finalSrc;
+                const newProcessed = new Image();
+                newProcessed.src = finalSrc;
+                newProcessed.onload = () => { currentProcessedImage = newProcessed; };
+                
+                document.getElementById('enableNameStrip').checked = false;
+                document.getElementById('nameStripInputsBox').style.display = 'none';
+            };
+        }
+
+        function applyFinalPhoto() {
+            if (!currentProcessedImage) return;
+            
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = currentProcessedImage.naturalWidth || currentProcessedImage.width;
+            tempCanvas.height = currentProcessedImage.naturalHeight || currentProcessedImage.height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            const brightVal = getComputedStyle(document.documentElement).getPropertyValue('--modal-bright') || '100%';
+            const contrastVal = getComputedStyle(document.documentElement).getPropertyValue('--modal-contrast') || '100%';
+            const saturateVal = getComputedStyle(document.documentElement).getPropertyValue('--modal-saturate') || '100%';
+            const sepiaVal = getComputedStyle(document.documentElement).getPropertyValue('--modal-sepia') || '0%';
+
+            tCtx.filter = `brightness(${brightVal}) contrast(${contrastVal}) saturate(${saturateVal}) sepia(${sepiaVal})`;
+            tCtx.drawImage(currentProcessedImage, 0, 0);
+
+            const finalFilteredSrc = tempCanvas.toDataURL('image/jpeg', 0.95);
+            setPhoto(targetSlotForCrop, finalFilteredSrc);
+            closeAIToolOverlay();
+        }
+
+        function setPhoto(i, src) {
+            const card = document.getElementById('card-'+i);
+            const img = document.getElementById('img-'+i);
+            img.src = src;
+            img.style.display = 'block';
+            card.classList.add('has-image');
+        }
+
+        function clearSlot(i) {
+            const card = document.getElementById('card-'+i);
+            const img = document.getElementById('img-'+i);
+            img.style.display = 'none';
+            img.src = '';
+            card.classList.remove('has-image');
+            card.style.border = '';
+            card.style.background = '';
+        }
+
+        function addBatchPhotos() {
+            var src = document.getElementById('img-0').src;
+            if(!src || document.getElementById('img-0').style.display === 'none') return alert('पहले पहली फोटो अपलोड करें!');
+            
+            let filledCount = 0;
+            for(let i = 0; i < TOTAL_SLOTS; i++) {
+                if(document.getElementById('img-'+i).style.display === 'block') { filledCount++; }
+            }
+            if (filledCount >= TOTAL_SLOTS) return alert('शीट पहले से पूरी भरी हुई है!');
+
+            let batchSize = isStampMode ? 9 : 6;
+            let target = Math.ceil((filledCount + 1) / batchSize) * batchSize;
+            target = Math.min(target, TOTAL_SLOTS);
+            for(let i = 0; i < target; i++) { setPhoto(i, src); }
+        }
+
+        function fillAllPhotos() {
+            var src = document.getElementById('img-0').src;
+            if(!src || document.getElementById('img-0').style.display === 'none') return alert('पहले पहली फोटो अपलोड करें!');
+            for(let i = 0; i < TOTAL_SLOTS; i++) { setPhoto(i, src); }
+        }
+
+        function printPopupSheet() {
+            prepareExport();
+            const sheetHtml = document.getElementById('printArea').outerHTML;
+            cleanupExport();
+
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html lang="hi">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Print Sheet</title>
+                    <style>
+                        @page { size: A4 portrait; margin: 0; }
+                        body { margin: 0; padding: 0; background: #ffffff; display: flex; justify-content: center; }
+                        .a4-sheet { width: 210mm !important; height: 297mm !important; padding: 6mm 4mm 4mm 4mm !important; box-sizing: border-box !important; background: #ffffff !important; overflow: hidden !important; position: relative !important; box-shadow: none !important; }
+                        .photo-grid { display: flex !important; flex-wrap: wrap !important; gap: 1.5mm 1.8mm !important; justify-content: center !important; align-content: flex-start !important; }
+                        .photo-card { width: ${isStampMode ? '0.78in !important' : '1.2in !important'}; height: ${isStampMode ? '1.0in !important' : '1.5in !important'}; border: 1px solid #94a3b8 !important; display: flex !important; align-items: center !important; justify-content: center !important; background: transparent !important; }
+                        .photo-card img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; }
+                        .photo-card:not(.has-image) { display: none !important; }
+                        .delete-btn { display: none !important; }
+                    </style>
+                </head>
+                <body>
+                    ${sheetHtml}
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 400);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+            const win = window.open(blobUrl, '_blank');
+            if (!win) {
+                alert('कृपया अपने ब्राउज़र में पॉप-अप (Pop-ups) की अनुमति दें!');
+            }
+        }
+
+        function prepareExport() {
+            const cards = document.querySelectorAll('.photo-card');
+            cards.cards = cards;
+            cards.forEach(card => {
+                const img = card.querySelector('img');
+                if (!img || img.style.display === 'none' || !img.src) {
+                    card.style.display = 'none';
+                } else {
+                    card.style.border = '1px solid #94a3b8';
+                    card.style.background = 'transparent';
+                }
+            });
+            const deleteBtns = document.querySelectorAll('.delete-btn');
+            deleteBtns.forEach(btn => btn.style.display = 'none');
+        }
+
+        function cleanupExport() {
+            const cards = document.querySelectorAll('.photo-card');
+            cards.forEach(card => {
+                card.style.display = 'flex';
+                const img = card.querySelector('img');
+                if (!img || img.style.display === 'none' || !img.src) {
+                    card.style.border = '1px dashed #cbd5e1';
+                    card.style.background = '#f8fafc';
+                }
+            });
+            const deleteBtns = document.querySelectorAll('.delete-btn');
+            deleteBtns.forEach(btn => btn.style.display = '');
+        }
+
+        function downloadPDF() {
+            prepareExport();
+            const sheet = document.getElementById('printArea');
+
+            html2canvas(sheet, { scale: 3, useCORS: true }).then(canvas => {
+                cleanupExport();
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                pdf.save('Passport_Photo_Sheet.pdf');
+            }).catch(() => {
+                cleanupExport();
+            });
+        }
+
+        function downloadJPG() {
+            prepareExport();
+            const sheet = document.getElementById('printArea');
+
+            html2canvas(sheet, { scale: 3, useCORS: true }).then(canvas => {
+                cleanupExport();
+                const link = document.createElement('a');
+                link.download = 'Passport_Photo_Sheet.jpg';
+                link.href = canvas.toDataURL('image/jpeg', 1.0);
+                link.click();
+            }).catch(() => {
+                cleanupExport();
+            });
+        }
+    </script>
+</body>
+</html>
